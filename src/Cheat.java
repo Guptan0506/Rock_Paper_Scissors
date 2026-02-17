@@ -1,4 +1,3 @@
-
 public class Cheat implements Strategy {
 
     @Override

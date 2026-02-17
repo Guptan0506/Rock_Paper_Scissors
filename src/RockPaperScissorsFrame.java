@@ -75,7 +75,18 @@ public class RockPaperScissorsFrame extends JFrame {
         paperButton.addActionListener(moveListener);
         scissorsButton.addActionListener(moveListener);
 
-        quitButton.addActionListener(e -> System.exit(0));
+        //When the user clicks quit, show a confirmation dialog
+        quitButton.addActionListener(e -> {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "Are you sure you want to quit?",
+                    "Confirm Exit",
+                    JOptionPane.YES_NO_OPTION
+            );
+            if (choice == JOptionPane.YES_OPTION) {
+                System.exit(0);
+            }
+        });
     }
 
     private void layoutComponents() {
