@@ -50,9 +50,9 @@ public class RockPaperScissorsFrame extends JFrame {
     }
 
     private void initComponents() {
-        rockButton = new JButton("Rock");
-        paperButton = new JButton("Paper");
-        scissorsButton = new JButton("Scissors");
+        rockButton = new JButton("Rock", new ImageIcon("src/rock.png"));
+        paperButton = new JButton("Paper", new ImageIcon("src/paper.png"));
+        scissorsButton = new JButton("Scissors", new ImageIcon("src/scissors.png"));
         quitButton = new JButton("Quit");
 
         // Stats fields
