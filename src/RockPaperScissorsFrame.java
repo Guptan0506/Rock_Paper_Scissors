@@ -1,221 +1,323 @@
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Random;
 
 public class RockPaperScissorsFrame extends JFrame {
 
-    // ============================
-    // Game State
-    // ============================
-    private int wins = 0;
-    private int losses = 0;
-    private int ties = 0;
-
     // GUI components
-    private JTextArea textArea;
-    private JTextField winsField;
-    private JTextField lossesField;
+    private JButton rockButton;
+    private JButton paperButton;
+    private JButton scissorsButton;
+    private JButton quitButton;
+
+    private JTextField playerWinsField;
+    private JTextField computerWinsField;
     private JTextField tiesField;
 
+    private JTextArea resultsArea;
+
+    // Game state
+    private int playerWins = 0;
+    private int computerWins = 0;
+    private int ties = 0;
+
+    private int playerRockCount = 0;
+    private int playerPaperCount = 0;
+    private int playerScissorsCount = 0;
+
+    private String lastPlayerMove = null;
+
+    private final Random random = new Random();
+
     // Strategies
-    private RandomStrategy randomStrategy = new RandomStrategy();
-    private CheatingStrategy cheatingStrategy = new CheatingStrategy();
-    private LastUsedStrategy lastUsedStrategy = new LastUsedStrategy();
+    private final Strategy cheatStrategy = new Cheat();
+    private final Strategy randomStrategy = new RandomStrategy();
+    private final Strategy leastUsedStrategy = new LeastUsedStrategy();
+    private final Strategy mostUsedStrategy = new MostUsedStrategy();
+    private final Strategy lastUsedStrategy = new LastUsedStrategy();
 
-    // ============================
-    // Helper class to return move + strategy
-    // ============================
-    private static class StrategyResult {
-        String move;
-        String strategy;
-
-        StrategyResult(String move, String strategy) {
-            this.move = move;
-            this.strategy = strategy;
-        }
-    }
-
-    // ============================
-    // Constructor (Build Window)
-    // ============================
     public RockPaperScissorsFrame() {
-        setTitle("Rock Paper Scissors");
-        setSize(500, 400);
+        super("Rock Paper Scissors Game");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout());
+        setSize(700, 500);
+        setLocationRelativeTo(null);
 
-        add(createButtonPanel(), BorderLayout.NORTH);
-        add(createScrollPanel(), BorderLayout.CENTER);
-        add(createStatsPanel(), BorderLayout.SOUTH);
-
-        setVisible(true);
+        initComponents();
+        layoutComponents();
     }
 
-    // ============================
-    // Button Panel
-    // ============================
-    private JPanel createButtonPanel() {
-        JPanel panel = new JPanel();
+    private void initComponents() {
+        rockButton = new JButton("Rock");
+        paperButton = new JButton("Paper");
+        scissorsButton = new JButton("Scissors");
+        quitButton = new JButton("Quit");
 
-        JButton rock = new JButton("Rock", new ImageIcon("src/rock.png"));
-        JButton paper = new JButton("Paper", new ImageIcon("src/paper.png"));
-        JButton scissors = new JButton("Scissors", new ImageIcon("src/scissors.png"));
-        JButton quit = new JButton("Quit");
+        // Stats fields
+        playerWinsField = new JTextField("0", 5);
+        playerWinsField.setEditable(false);
 
-        rock.addActionListener(e -> handleMove("Rock"));
-        paper.addActionListener(e -> handleMove("Paper"));
-        scissors.addActionListener(e -> handleMove("Scissors"));
-        quit.addActionListener(e -> System.exit(0));
+        computerWinsField = new JTextField("0", 5);
+        computerWinsField.setEditable(false);
 
-        panel.add(rock);
-        panel.add(paper);
-        panel.add(scissors);
-        panel.add(quit);
-
-        return panel;
-    }
-
-    // ============================
-    // Stats Panel
-    // ============================
-    private JPanel createStatsPanel() {
-        JPanel panel = new JPanel();
-
-        winsField = new JTextField("0", 5);
-        lossesField = new JTextField("0", 5);
         tiesField = new JTextField("0", 5);
-
-        winsField.setEditable(false);
-        lossesField.setEditable(false);
         tiesField.setEditable(false);
 
-        panel.add(new JLabel("Wins:"));
-        panel.add(winsField);
-        panel.add(new JLabel("Losses:"));
-        panel.add(lossesField);
-        panel.add(new JLabel("Ties:"));
-        panel.add(tiesField);
+        // Results area
+        resultsArea = new JTextArea(15, 40);
+        resultsArea.setEditable(false);
 
-        return panel;
+        // Single listener for R/P/S
+        ActionListener moveListener = new MoveButtonListener();
+        rockButton.addActionListener(moveListener);
+        paperButton.addActionListener(moveListener);
+        scissorsButton.addActionListener(moveListener);
+
+        quitButton.addActionListener(e -> System.exit(0));
     }
 
-    // ============================
-    // Scrollable Text Area
-    // ============================
-    private JScrollPane createScrollPanel() {
-        textArea = new JTextArea(10, 30);
-        textArea.setEditable(false);
-        return new JScrollPane(textArea);
+    private void layoutComponents() {
+        setLayout(new BorderLayout());
+
+        // Top panel: buttons
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setBorder(new TitledBorder("Choose your move"));
+        buttonPanel.add(rockButton);
+        buttonPanel.add(paperButton);
+        buttonPanel.add(scissorsButton);
+        buttonPanel.add(quitButton);
+
+        // Stats panel
+        JPanel statsPanel = new JPanel(new GridLayout(3, 2, 5, 5));
+        statsPanel.setBorder(new TitledBorder("Stats"));
+
+        statsPanel.add(new JLabel("Player Wins:"));
+        statsPanel.add(playerWinsField);
+
+        statsPanel.add(new JLabel("Computer Wins:"));
+        statsPanel.add(computerWinsField);
+
+        statsPanel.add(new JLabel("Ties:"));
+        statsPanel.add(tiesField);
+
+        // Results panel
+        JScrollPane scrollPane = new JScrollPane(resultsArea);
+        JPanel resultsPanel = new JPanel(new BorderLayout());
+        resultsPanel.setBorder(new TitledBorder("Game Results"));
+        resultsPanel.add(scrollPane, BorderLayout.CENTER);
+
+        add(buttonPanel, BorderLayout.NORTH);
+        add(statsPanel, BorderLayout.WEST);
+        add(resultsPanel, BorderLayout.CENTER);
     }
 
-    // ============================
-    // Handle Player Move
-    // ============================
-    private void handleMove(String playerMove) {
+    private class MoveButtonListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            String playerMove;
+            if (e.getSource() == rockButton) {
+                playerMove = "R";
+                playerRockCount++;
+            } else if (e.getSource() == paperButton) {
+                playerMove = "P";
+                playerPaperCount++;
+            } else {
+                playerMove = "S";
+                playerScissorsCount++;
+            }
 
-        StrategyResult resultObj = chooseStrategy(playerMove);
+            // Choose strategy based on probability
+            int p = random.nextInt(100) + 1;
+            Strategy chosenStrategy;
+            String strategyName;
 
-        String computerMove = resultObj.move;
-        String strategyUsed = resultObj.strategy;
+            if (p >= 1 && p <= 10) {
+                chosenStrategy = cheatStrategy;
+                strategyName = "Cheat";
+            } else if (p <= 30) {
+                chosenStrategy = leastUsedStrategy;
+                strategyName = "Least Used";
+            } else if (p <= 50) {
+                chosenStrategy = mostUsedStrategy;
+                strategyName = "Most Used";
+            } else if (p <= 70) {
+                chosenStrategy = lastUsedStrategy;
+                strategyName = "Last Used";
+            } else {
+                chosenStrategy = randomStrategy;
+                strategyName = "Random";
+            }
 
-        String result = determineWinner(playerMove, computerMove);
+            String computerMove = chosenStrategy.getMove(playerMove);
+            String resultLine = determineResultLine(playerMove, computerMove, strategyName);
 
-        lastUsedStrategy.update(playerMove);
-        updateStats(result);
+            // Update last player move
+            lastPlayerMove = playerMove;
 
-        textArea.append(
-                playerMove + " vs " + computerMove +
-                        " → " + result +
-                        "   [" + strategyUsed + "]\n"
-        );
-    }
+            // Append to text area
+            resultsArea.append(resultLine + "\n");
 
-    // ============================
-    // Strategy Selection (returns move + strategy name)
-    // ============================
-    private StrategyResult chooseStrategy(String playerMove) {
-        double r = Math.random();
-
-        if (r < 0.1) {
-            return new StrategyResult(
-                    cheatingStrategy.getMove(playerMove),
-                    "Cheating Strategy (10%)"
-            );
+            // Update stats fields
+            playerWinsField.setText(String.valueOf(playerWins));
+            computerWinsField.setText(String.valueOf(computerWins));
+            tiesField.setText(String.valueOf(ties));
         }
-        if (r < 0.9) {
-            return new StrategyResult(
-                    randomStrategy.getMove(),
-                    "Random Strategy (80%)"
-            );
-        }
-        return new StrategyResult(
-                lastUsedStrategy.getMove(),
-                "Last Used Strategy (10%)"
-        );
     }
 
-    // ============================
-    // Determine Winner
-    // ============================
-    private String determineWinner(String p, String c) {
-        if (p.equals(c)) return "Tie";
-
-        if (p.equals("Rock") && c.equals("Scissors")) return "Player";
-        if (p.equals("Paper") && c.equals("Rock")) return "Player";
-        if (p.equals("Scissors") && c.equals("Paper")) return "Player";
-
-        return "Computer";
-    }
-
-    // ============================
-    // Update Stats
-    // ============================
-    private void updateStats(String result) {
-        if (result.equals("Player")) wins++;
-        else if (result.equals("Computer")) losses++;
-        else ties++;
-
-        winsField.setText(String.valueOf(wins));
-        lossesField.setText(String.valueOf(losses));
-        tiesField.setText(String.valueOf(ties));
-    }
-
-    // ============================
-    // Strategy Classes
-    // ============================
-    class RandomStrategy {
-        public String getMove() {
-            String[] moves = {"Rock", "Paper", "Scissors"};
-            int index = (int) (Math.random() * moves.length);
-            return moves[index];
-        }
-    }
-
-    class CheatingStrategy {
+    // Inner strategy: Least Used
+    private class LeastUsedStrategy implements Strategy {
+        @Override
         public String getMove(String playerMove) {
-            if (playerMove.equals("Rock")) return "Paper";
-            if (playerMove.equals("Paper")) return "Scissors";
-            return "Rock";
+            // Find least used player symbol
+            int r = playerRockCount;
+            int p = playerPaperCount;
+            int s = playerScissorsCount;
+
+            // Default to Rock if all zero
+            String leastUsed = "R";
+            int min = r;
+
+            if (p < min) {
+                min = p;
+                leastUsed = "P";
+            }
+            if (s < min) {
+                min = s;
+                leastUsed = "S";
+            }
+
+            // Computer plays the move that beats the least used
+            switch (leastUsed) {
+                case "R":
+                    return "P"; // Paper beats Rock
+                case "P":
+                    return "S"; // Scissors beats Paper
+                case "S":
+                    return "R"; // Rock beats Scissors
+                default:
+                    return "R";
+            }
         }
     }
 
-    class LastUsedStrategy {
-        private String lastMove = "Rock";
+    // Inner strategy: Most Used
+    private class MostUsedStrategy implements Strategy {
+        @Override
+        public String getMove(String playerMove) {
+            int r = playerRockCount;
+            int p = playerPaperCount;
+            int s = playerScissorsCount;
 
-        public String getMove() {
-            if (lastMove.equals("Rock")) return "Paper";
-            if (lastMove.equals("Paper")) return "Scissors";
-            return "Rock";
-        }
+            String mostUsed = "R";
+            int max = r;
 
-        public void update(String move) {
-            lastMove = move;
+            if (p > max) {
+                max = p;
+                mostUsed = "P";
+            }
+            if (s > max) {
+                max = s;
+                mostUsed = "S";
+            }
+
+            // Computer plays the move that beats the most used
+            switch (mostUsed) {
+                case "R":
+                    return "P";
+                case "P":
+                    return "S";
+                case "S":
+                    return "R";
+                default:
+                    return "R";
+            }
         }
     }
 
-    // ============================
-    // Main Method
-    // ============================
+    // Inner strategy: Last Used
+    private class LastUsedStrategy implements Strategy {
+        @Override
+        public String getMove(String playerMove) {
+            // If no last move yet, fall back to random
+            if (lastPlayerMove == null) {
+                return randomStrategy.getMove(playerMove);
+            }
+
+            // Assume player will repeat last move; computer plays the move that beats it
+            switch (lastPlayerMove) {
+                case "R":
+                    return "P";
+                case "P":
+                    return "S";
+                case "S":
+                    return "R";
+                default:
+                    return randomStrategy.getMove(playerMove);
+            }
+        }
+    }
+
+    private String determineResultLine(String playerMove, String computerMove, String strategyName) {
+        String playerWord = moveToWord(playerMove);
+        String computerWord = moveToWord(computerMove);
+
+        if (playerMove.equals(computerMove)) {
+            ties++;
+            return playerWord + " vs " + computerWord + ". (Tie! Computer: " + strategyName + ")";
+        }
+
+        // Determine winner and rule text
+        String ruleText;
+        boolean playerWinsRound;
+
+        if (playerMove.equals("R") && computerMove.equals("S")) {
+            ruleText = "Rock breaks scissors";
+            playerWinsRound = true;
+        } else if (playerMove.equals("S") && computerMove.equals("R")) {
+            ruleText = "Rock breaks scissors";
+            playerWinsRound = false;
+        } else if (playerMove.equals("P") && computerMove.equals("R")) {
+            ruleText = "Paper covers rock";
+            playerWinsRound = true;
+        } else if (playerMove.equals("R") && computerMove.equals("P")) {
+            ruleText = "Paper covers rock";
+            playerWinsRound = false;
+        } else if (playerMove.equals("S") && computerMove.equals("P")) {
+            ruleText = "Scissors cuts paper";
+            playerWinsRound = true;
+        } else { // player P, computer S
+            ruleText = "Scissors cuts paper";
+            playerWinsRound = false;
+        }
+
+        if (playerWinsRound) {
+            playerWins++;
+            return ruleText + ". (Player wins! Computer: " + strategyName + ")";
+        } else {
+            computerWins++;
+            return ruleText + ". (Computer wins! Computer: " + strategyName + ")";
+        }
+    }
+
+    private String moveToWord(String move) {
+        switch (move) {
+            case "R":
+                return "Rock";
+            case "P":
+                return "Paper";
+            case "S":
+                return "Scissors";
+            default:
+                return "Unknown";
+        }
+    }
+
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(RockPaperScissorsFrame::new);
+        SwingUtilities.invokeLater(() -> {
+            RockPaperScissorsFrame frame = new RockPaperScissorsFrame();
+            frame.setVisible(true);
+        });
     }
 }
